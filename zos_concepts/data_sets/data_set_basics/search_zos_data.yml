@@ -1,0 +1,49 @@
+---
+- name: Search z/OS datasets for keyword
+  hosts: zos_host
+  gather_facts: no
+  vars:
+    search_keyword: "ERROR"
+    dataset_pattern: "USER1.TEST.*"  # 検索対象のデータセットのパターン
+
+  tasks:
+    - name: List datasets matching pattern
+      ibm.ibm_zos_core.zos_data_set:
+        batch:
+          - name: "{{ dataset_pattern }}"
+            type: PDS
+            state: list
+      register: dataset_list
+
+    - name: Initialize result list
+      set_fact:
+        matched_members: []
+
+    - name: Search keyword in members of each dataset
+      vars:
+        current_dataset: "{{ item.name }}"
+      loop: "{{ dataset_list.batched }}"
+      loop_control:
+        label: "{{ item.name }}"
+      block:
+        - name: List members in dataset
+          ibm.ibm_zos_core.zos_fetch:
+            src: "{{ current_dataset }}(*)"
+            dest: "./tmp_members/"
+            flat: yes
+          register: fetched_members
+
+        - name: Grep for keyword in members
+          command: grep -l "{{ search_keyword }}" ./tmp_members/*
+          register: grep_result
+          ignore_errors: yes
+
+        - name: Add matched members to result
+          set_fact:
+            matched_members: "{{ matched_members + grep_result.stdout_lines | default([]) }}"
+          when: grep_result.rc == 0
+
+    - name: Show matched members
+      debug:
+        msg: "Matched member: {{ item }}"
+      loop: "{{ matched_members }}"
