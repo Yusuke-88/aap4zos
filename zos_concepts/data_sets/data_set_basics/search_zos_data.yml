@@ -23,9 +23,7 @@
       vars:
         current_dataset: "{{ item.name }}"
       loop: "{{ dataset_list.batched }}"
-      loop_control:
-        label: "{{ item.name }}"
-      block:
+      tasks:
         - name: List members in dataset
           ibm.ibm_zos_core.zos_fetch:
             src: "{{ current_dataset }}(*)"
